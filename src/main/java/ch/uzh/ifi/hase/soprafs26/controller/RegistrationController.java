@@ -1,10 +1,7 @@
 package ch.uzh.ifi.hase.soprafs26.controller;
 
-import java.util.ArrayList;
-import java.util.List;
-
+import ch.uzh.ifi.hase.soprafs26.service.PasswordService;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -25,36 +22,23 @@ import ch.uzh.ifi.hase.soprafs26.service.UserService;
  * UserService and finally return the result.
  */
 @RestController
-public class UserController {
+public class RegistrationController {
 
 	private final UserService userService;
+    private final PasswordService passwordService;
 
-	UserController(UserService userService) {
+	RegistrationController(UserService userService, PasswordService passwordService) {
 		this.userService = userService;
+        this.passwordService = passwordService;
 	}
 
-	@GetMapping("/users")
-	@ResponseStatus(HttpStatus.OK)
-	@ResponseBody
-	public List<UserGetDTO> getAllUsers() {
-		// fetch all users in the internal representation
-		List<User> users = userService.getUsers();
-		List<UserGetDTO> userGetDTOs = new ArrayList<>();
-
-		// convert each user to the API representation
-		for (User user : users) {
-			userGetDTOs.add(DTOMapper.INSTANCE.convertEntityToUserGetDTO(user));
-		}
-		return userGetDTOs;
-	}
-
-	@PostMapping("/users")
+	@PostMapping("/register")
 	@ResponseStatus(HttpStatus.CREATED)
 	@ResponseBody
 	public UserGetDTO createUser(@RequestBody UserPostDTO userPostDTO) {
-    System.out.println("Creating a user");
 		// convert API user to internal representation
 		User userInput = DTOMapper.INSTANCE.convertUserPostDTOtoEntity(userPostDTO);
+        userInput.setPassword(passwordService.hashPassword(userInput.getPassword()));
 
 		// create user
 		User createdUser = userService.createUser(userInput);

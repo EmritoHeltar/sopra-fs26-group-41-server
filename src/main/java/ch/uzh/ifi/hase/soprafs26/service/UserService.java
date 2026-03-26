@@ -39,40 +39,55 @@ public class UserService {
 	}
 
 	public User createUser(User newUser) {
-		newUser.setToken(UUID.randomUUID().toString());
+		newUser.setToken(newToken());
 		newUser.setStatus(UserStatus.OFFLINE);
-		checkIfUserExists(newUser);
-		// saves the given entity but data is only persisted in the database once
-		// flush() is called
+        if (usernameTaken(newUser)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The provided username is not unique");
+        }
+
 		newUser = userRepository.save(newUser);
 		userRepository.flush();
 
-		log.debug("Created Information for User: {}", newUser);
 		return newUser;
 	}
 
-	/**
-	 * This is a helper method that will check the uniqueness criteria of the
-	 * username and the name
-	 * defined in the User entity. The method will do nothing if the input is unique
-	 * and throw an error otherwise.
-	 *
-	 * @param userToBeCreated
-	 * @throws org.springframework.web.server.ResponseStatusException
-	 * @see User
-	 */
-	private void checkIfUserExists(User userToBeCreated) {
-		User userByUsername = userRepository.findByUsername(userToBeCreated.getUsername());
-		User userByName = userRepository.findByName(userToBeCreated.getName());
+    public User updateUserToken(User user, String tokenNew) {
+        user.setToken(tokenNew);
+        userRepository.save(user);
+        userRepository.flush();
+        return user;
+    }
 
-		String baseErrorMessage = "The %s provided %s not unique. Therefore, the user could not be created!";
-		if (userByUsername != null && userByName != null) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-					String.format(baseErrorMessage, "username and the name", "are"));
-		} else if (userByUsername != null) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.format(baseErrorMessage, "username", "is"));
-		} else if (userByName != null) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.format(baseErrorMessage, "name", "is"));
-		}
-	}
+    public void updateUserStatus(User user, UserStatus newStatus) {
+        user.setStatus(newStatus);
+        userRepository.save(user);
+        userRepository.flush();
+    }
+
+    public String newToken() {
+        return UUID.randomUUID().toString();
+    }
+
+    public boolean authenticated(String token) {
+        User user = userRepository.findByToken(token);
+        return user != null && user.getStatus() == UserStatus.ONLINE;
+    }
+
+    public User getUserByToken (String token) {
+        return userRepository.findByToken(token);
+    }
+
+    public User getUserById(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+    }
+
+    public User getUserByUsername(String username) {
+        return userRepository.findByUsername(username);
+    }
+
+    private boolean usernameTaken(User userToBeCreated) {
+        User userByUsername = userRepository.findByUsername(userToBeCreated.getUsername());
+        return userByUsername != null;
+    }
 }
