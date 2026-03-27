@@ -1,0 +1,32 @@
+package ch.uzh.ifi.hase.soprafs26.entity;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Embeddable;
+
+import java.io.Serializable;
+
+@Embeddable
+public class RatedMovie implements Serializable {
+
+    @Column(name = "movie_name", nullable = false)
+    private String name;
+
+    @Column(name = "movie_rating", nullable = false)
+    private float rating;
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public float getRating() {
+        return rating;
+    }
+
+    public void setRating(float rating) {
+        this.rating = rating;
+    }
+}

@@ -41,6 +41,9 @@ public class UserService {
 	public User createUser(User newUser) {
 		newUser.setToken(newToken());
 		newUser.setStatus(UserStatus.OFFLINE);
+        if (newUser.getTasteProfile() == null) {
+            newUser.setTasteProfile(null);
+        }
         if (usernameTaken(newUser)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "The provided username is not unique");
         }
