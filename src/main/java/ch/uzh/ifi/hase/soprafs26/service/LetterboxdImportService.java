@@ -1,5 +1,8 @@
 package ch.uzh.ifi.hase.soprafs26.service;
 
+import ch.uzh.ifi.hase.soprafs26.controller.LetterboxdImportController;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ch.uzh.ifi.hase.soprafs26.entity.RatedMovie;
 import ch.uzh.ifi.hase.soprafs26.entity.TasteProfile;
 import ch.uzh.ifi.hase.soprafs26.entity.User;
@@ -28,6 +31,7 @@ import java.util.zip.ZipInputStream;
 @Service
 public class LetterboxdImportService {
     private final UserRepository userRepository;
+    private final Logger log = LoggerFactory.getLogger(LetterboxdImportService.class);
 
     public LetterboxdImportService(@Qualifier("userRepository") UserRepository userRepository) {
         this.userRepository = userRepository;
@@ -42,26 +46,34 @@ public class LetterboxdImportService {
 
         List<RatedMovie> ratedMovies = parseRatedMovies(ratingsCsv);
 
+        LetterboxdImportResponse response = new LetterboxdImportResponse();
+        LetterboxdImportResponse.Stats stats = new LetterboxdImportResponse.Stats();
+
+        stats.setMoviesLogged(ratedMovies.size());
+        int highlyRated = (int) ratedMovies.stream()
+                .filter(movie -> movie.getRating() >= 4.5)
+                .count();
+        stats.setTopGenres(Collections.emptyList());
+        stats.setHighlyRatedMovies(highlyRated);
+        response.setStats(stats);
+
         TasteProfile tasteProfile = new TasteProfile();
         tasteProfile.setRatedMovies(ratedMovies);
+        tasteProfile.setHighlyRatedMovies(highlyRated);
         user.setTasteProfile(tasteProfile);
         User savedUser = userRepository.save(user);
         userRepository.flush();
 
-        LetterboxdImportResponse response = new LetterboxdImportResponse();
-        LetterboxdImportResponse.Stats stats = new LetterboxdImportResponse.Stats();
+
+
 
         response.setId(savedUser.getId());
         response.setUsername(savedUser.getUsername());
         response.setHasLetterboxdData(!ratedMovies.isEmpty());
 
-        stats.setMoviesLogged(ratedMovies.size());
-        stats.setHighlyRatedMovies((int) ratedMovies.stream()
-                // all movies with rating >= 4 are ranked highly
-                .filter(movie ->   movie.getRating() >= 4.5)
-                .count());
-        stats.setTopGenres(Collections.emptyList());
-        response.setStats(stats);
+        log.debug("Imported Letterboxd Data for user {}", savedUser.getUsername());
+
+
         return response;
     }
 
@@ -96,7 +108,6 @@ public class LetterboxdImportService {
                 ratedMovie.setRating(parseLetterboxdRating(ratingValue));
                 ratedMovies.add(ratedMovie);
             }
-
             return ratedMovies;
         }
     }

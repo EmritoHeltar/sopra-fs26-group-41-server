@@ -5,14 +5,14 @@ import jakarta.persistence.Embeddable;
 import jakarta.persistence.FetchType;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 @Embeddable
 public class TasteProfile implements Serializable {
 
     @ElementCollection(fetch = FetchType.EAGER)
     private List<RatedMovie> ratedMovies = new ArrayList<>();
+    private int highlyRatedMovies=0;
 
     public List<RatedMovie> getRatedMovies() {
         return ratedMovies;
@@ -20,5 +20,33 @@ public class TasteProfile implements Serializable {
 
     public void setRatedMovies(List<RatedMovie> ratedMovies) {
         this.ratedMovies = ratedMovies != null ? ratedMovies : new ArrayList<>();
+    }
+
+    public int getHighlyRatedMovies() {
+        return highlyRatedMovies;
+    }
+    public void setHighlyRatedMovies(int highlyRatedMovies) {
+        this.highlyRatedMovies = highlyRatedMovies;
+    }
+    private void addRatedMovies(List<RatedMovie> ratedMovies) {
+        this.ratedMovies.addAll(ratedMovies);
+    }
+    public static TasteProfile MergeTasteProfiles(List<TasteProfile> tasteProfiles) {
+        TasteProfile mergedProfile = new TasteProfile();
+        Map<String,RatedMovie> ratedMoviesHashMap=new LinkedHashMap<>();
+        tasteProfiles.forEach(tasteProfile->{
+            if(tasteProfile.getRatedMovies()!=null){
+                for(RatedMovie ratedMovie:tasteProfile.getRatedMovies()){
+                    ratedMoviesHashMap.put(ratedMovie.getName(),ratedMovie);
+                }
+            }
+        });
+        mergedProfile.setRatedMovies(new ArrayList<>(ratedMoviesHashMap.values()));
+        int count = (int) mergedProfile.getRatedMovies().stream()
+                .filter(m -> m.getRating() >= 4.5)
+                .count();
+        mergedProfile.setHighlyRatedMovies(count);
+
+        return mergedProfile;
     }
 }
