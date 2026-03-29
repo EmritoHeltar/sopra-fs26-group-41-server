@@ -1,13 +1,10 @@
 package ch.uzh.ifi.hase.soprafs26.rest.mapper;
 
-import ch.uzh.ifi.hase.soprafs26.rest.dto.AuthenticationGetDTO;
-import ch.uzh.ifi.hase.soprafs26.rest.dto.AuthenticationPostDTO;
+import ch.uzh.ifi.hase.soprafs26.rest.dto.*;
 import org.mapstruct.*;
 import org.mapstruct.factory.Mappers;
 
 import ch.uzh.ifi.hase.soprafs26.entity.User;
-import ch.uzh.ifi.hase.soprafs26.rest.dto.UserGetDTO;
-import ch.uzh.ifi.hase.soprafs26.rest.dto.UserPostDTO;
 
 /**
  * DTOMapper
@@ -42,4 +39,17 @@ public interface DTOMapper {
     @Mapping(source = "username", target = "username")
     @Mapping(source = "password", target = "password")
     AuthenticationPostDTO convertEntityToAuthenticationPostDTO(User user);
+
+    @Mapping(source = "id", target = "id")
+    @Mapping(source = "username", target = "username")
+    // Taste Overlap is present in Branch S2 but not my current one This code can be used as soon as they merge
+    //@Mapping(source = "hasLetterboxdData", target = "hasLetterboxdData")
+    //@Mapping(source = "tasteOverlap", target = "tasteOverlap")
+    //@Mapping(source = "moviesLogged", target = "stats.moviesLogged")
+    //@Mapping(source = "highlyRatedMovies", target = "stats.highlyRatedMovies")
+    //@Mapping(source = "topGenres", target = "stats.topGenres")
+    @Mapping(target = "hasLetterboxdData", ignore = true)
+    @Mapping(target = "tasteOverlap", ignore = true)
+    @Mapping(target = "stats", ignore = true)
+    UsersGetDTO convertEntityToUsersGetDTO(User user);
 }

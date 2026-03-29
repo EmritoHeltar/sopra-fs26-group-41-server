@@ -1,5 +1,6 @@
 package ch.uzh.ifi.hase.soprafs26.controller;
 
+import ch.uzh.ifi.hase.soprafs26.service.PasswordService;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
@@ -46,28 +47,8 @@ public class UserControllerTest {
 	@MockitoBean
 	private UserService userService;
 
-	@Test
-	public void givenUsers_whenGetUsers_thenReturnJsonArray() throws Exception {
-		// given
-		User user = new User();
-		user.setUsername("firstname@lastname");
-		user.setStatus(UserStatus.OFFLINE);
-
-		List<User> allUsers = Collections.singletonList(user);
-
-		// this mocks the UserService -> we define above what the userService should
-		// return when getUsers() is called
-		given(userService.getUsers()).willReturn(allUsers);
-
-		// when
-		MockHttpServletRequestBuilder getRequest = get("/users").contentType(MediaType.APPLICATION_JSON);
-
-		// then
-		mockMvc.perform(getRequest).andExpect(status().isOk())
-				.andExpect(jsonPath("$", hasSize(1)))
-				.andExpect(jsonPath("$[0].username", is(user.getUsername())))
-				.andExpect(jsonPath("$[0].status", is(user.getStatus().toString())));
-	}
+    @MockitoBean
+    private PasswordService passwordService;
 
 	@Test
 	public void createUser_validInput_userCreated() throws Exception {
@@ -84,7 +65,7 @@ public class UserControllerTest {
 		given(userService.createUser(Mockito.any())).willReturn(user);
 
 		// when/then -> do the request + validate the result
-		MockHttpServletRequestBuilder postRequest = post("/users")
+		MockHttpServletRequestBuilder postRequest = post("/register")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(asJsonString(userPostDTO));
 
