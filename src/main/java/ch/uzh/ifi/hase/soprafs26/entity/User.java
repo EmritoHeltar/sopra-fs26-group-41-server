@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import ch.uzh.ifi.hase.soprafs26.constant.UserStatus;
 
 import java.io.Serializable;
+import java.util.Objects;
 
 /**
  * Internal User Representation
@@ -38,7 +39,12 @@ public class User implements Serializable {
 	@Column(nullable = false)
 	private UserStatus status;
 
-	public Long getId() {
+    @Embedded
+    private TasteProfile tasteProfile = new TasteProfile();
+
+    private boolean hasLetterboxdData=true;
+
+    public Long getId() {
 		return id;
 	}
 
@@ -77,4 +83,20 @@ public class User implements Serializable {
     public void setPassword(String password) {
         this.password = password;
     }
+
+    public TasteProfile getTasteProfile() {
+        this.setHasLetterboxdData(true);
+        return tasteProfile;
+    }
+
+    public void setTasteProfile(TasteProfile tasteProfile) {
+        this.tasteProfile = Objects.requireNonNullElseGet(tasteProfile, TasteProfile::new);
+    }
+    public boolean isHasLetterboxdData() {
+        return hasLetterboxdData;
+    }
+    public void setHasLetterboxdData(boolean hasLetterboxdData) {
+        this.hasLetterboxdData = hasLetterboxdData;
+    }
+
 }
