@@ -1,0 +1,119 @@
+package ch.uzh.ifi.hase.soprafs26.entity;
+
+import jakarta.persistence.*;
+
+import ch.uzh.ifi.hase.soprafs26.constant.UserStatus;
+
+import java.io.Serializable;
+import java.util.Objects;
+
+/**
+ * Internal User Representation
+ * This class composes the internal representation of the user and defines how
+ * the user is stored in the database.
+ * Every variable will be mapped into a database field with the @Column
+ * annotation
+ * - nullable = false -> this cannot be left empty
+ * - unique = true -> this value must be unqiue across the database -> composes
+ * the primary key
+ */
+@Entity
+@Table(name = "groups")
+public class Group implements Serializable {
+
+	private static final long serialVersionUID = 1L;
+
+	@Id
+	@GeneratedValue
+	private Long id;
+
+	@Column(nullable = false, unique = true)
+	private String groupName;
+
+    @ManyToMany
+    private List<User> members;
+
+    private TasteProfile groupTasteprofile;
+
+    //private fetchedmovie RecommendedMovies;
+
+    //private Poll Poll;
+
+    private String inviteLink;
+
+    private String joinToken;
+
+    //private Canvas ProfilePicture
+    @ManyToOne
+    private User owner;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getGroupName() {
+        return groupName;
+    }
+
+    public void setGroupName(String groupName) {
+        this.groupName = groupName;
+    }
+
+    public List<User> getMembers() {
+        return members;
+    }
+
+    public void addMember(User member) {
+        // Initialize the list if it's the first member being added
+        if (this.members == null) {
+            this.members = new java.util.ArrayList<>();
+        }
+        // Prevent duplicate entries at the entity level
+        if (!this.members.contains(member)) {
+            this.members.add(member);
+        }
+    }
+
+    public void removeMember(User member) {
+        if (this.members != null) {
+            this.members.remove(member);
+        }
+    }
+
+    public TasteProfile getGroupTasteProfile() {
+        return groupTasteProfile;
+    }
+
+    public void setGroupTasteProfile(TasteProfile groupTasteProfile) {
+        this.groupTasteProfile = groupTasteProfile;
+    }
+
+    public String getInviteLink() {
+        return inviteLink;
+    }
+
+    public void setInviteLink(String inviteLink) {
+        this.inviteLink = inviteLink;
+    }
+
+    public String getJoinToken() {
+        return joinToken;
+    }
+
+    public void setJoinToken(String joinToken) {
+        this.joinToken = joinToken;
+    }
+
+    public User getOwner() {
+        return owner;
+    }
+
+    public void setOwner(User owner) {
+        this.owner = owner;
+    }
+
+}
