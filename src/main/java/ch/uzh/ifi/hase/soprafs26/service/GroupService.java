@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.UUID;
+
 @Service
 @Transactional
 public class GroupService {
@@ -23,10 +25,23 @@ public class GroupService {
         this.groupRepository = groupRepository;
     }
 
+    public Group createNewGroup(User user, String name) {
+        if (!groupNameUnique(name)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The groupname is already taken");
+        }
+        Group group = new Group();
+        group.setGroupName(name);
+        group.setOwner(user);
+        group.setJoinToken(UUID.randomUUID().toString());
+        group.addMember(user);
+
+        return groupRepository.save(group);
+    }
+
     public Group joinGroupByToken(String joinToken, User user) {
         log.debug("Attempting to join group with token: {} for user: {}", joinToken, user.getUsername());
         
-        Group group = groupRepository.findByJoinToken(joinToken);
+        Group group = groupRepository.findGroupByJoinToken(joinToken);
         
         if (group == null) {
             log.error("Failed to join group. Invalid join token: {}", joinToken);
@@ -35,7 +50,7 @@ public class GroupService {
 
         if (group.getMembers() != null && group.getMembers().contains(user)) {
             log.warn("User {} attempted to join group {} but is already a member.", user.getUsername(), group.getGroupName());
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User is already a member. Group URL: " + group.getInviteLink());
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User is already a member. Group URL: " + group.getJoinToken());
         }
 
         // Add user to the group
@@ -44,5 +59,9 @@ public class GroupService {
         
         // Save and return the updated group
         return groupRepository.save(group);
+    }
+
+    private boolean groupNameUnique(String name) {
+        return groupRepository.findGroupByGroupName(name) == null;
     }
 }

@@ -7,5 +7,6 @@ import ch.uzh.ifi.hase.soprafs26.entity.Group; // Ensure Group is imported
 @Repository("groupRepository")
 public interface GroupRepository extends JpaRepository<Group, Long> {
 
-    Group findByJoinToken(String joinToken);
+    Group findGroupByJoinToken(String joinToken);
+    Group findGroupByGroupName(String groupName);
 }

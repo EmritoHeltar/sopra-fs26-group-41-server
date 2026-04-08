@@ -2,11 +2,9 @@ package ch.uzh.ifi.hase.soprafs26.entity;
 
 import jakarta.persistence.*;
 
-import ch.uzh.ifi.hase.soprafs26.constant.UserStatus;
-
+import java.io.File;
 import java.io.Serializable;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Internal User Representation
@@ -25,7 +23,7 @@ public class Group implements Serializable {
 	private static final long serialVersionUID = 1L;
 
 	@Id
-	@GeneratedValue
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
 	@Column(nullable = false, unique = true)
@@ -34,19 +32,17 @@ public class Group implements Serializable {
     @ManyToMany
     private List<User> members;
 
-    private TasteProfile groupTasteprofile;
+    @Embedded
+    private TasteProfile groupTasteProfile = new TasteProfile();
 
     //private fetchedmovie RecommendedMovies;
 
     //private Poll Poll;
 
-    private String inviteLink;
-
     private String joinToken;
 
-    private TasteProfile groupTasteProfile;
-
-    //private Canvas ProfilePicture
+    // todo: will change to a canvas object in future => not yet implemented
+    private File profilePicture;
     @ManyToOne
     private User owner;
 
@@ -95,20 +91,12 @@ public class Group implements Serializable {
         this.groupTasteProfile = groupTasteProfile;
     }
 
-    public String getInviteLink() {
-        return inviteLink;
-    }
-
-    public void setInviteLink(String inviteLink) {
-        this.inviteLink = inviteLink;
-    }
-
     public String getJoinToken() {
         return joinToken;
     }
 
-    public void setJoinToken(String joinToken) {
-        this.joinToken = joinToken;
+    public void setJoinToken(String inviteLink) {
+        this.joinToken = inviteLink;
     }
 
     public User getOwner() {
@@ -119,4 +107,11 @@ public class Group implements Serializable {
         this.owner = owner;
     }
 
+    public File getProfilePicture() {
+        return profilePicture;
+    }
+
+    public void setProfilePicture(File profilePicture) {
+        this.profilePicture = profilePicture;
+    }
 }
