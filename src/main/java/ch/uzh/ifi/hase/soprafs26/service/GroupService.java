@@ -69,4 +69,13 @@ public class GroupService {
     private boolean groupNameUnique(String name) {
         return groupRepository.findGroupByGroupName(name) == null;
     }
+
+    public Group getGroupById(Long id) {
+        return groupRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Group not found"));
+    }
+
+    public boolean isMember(Group group, User user) {
+        return group.getMembers() != null && group.getMembers().contains(user);
+    }
 }

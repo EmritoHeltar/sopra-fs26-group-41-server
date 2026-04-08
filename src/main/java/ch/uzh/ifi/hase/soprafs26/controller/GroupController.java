@@ -69,6 +69,31 @@ public class GroupController {
         return response;
     }
 
+    @GetMapping("/groups/{groupId}")
+    @ResponseStatus(HttpStatus.OK)
+    @ResponseBody
+    public GroupDetailsResponseDTO getGroupDetails(
+            @PathVariable Long groupId,
+            @RequestHeader(value = "Authorization", required = true) String authorization) {
+
+        String token = AuthenticationController.getAuthorizationToken(authorization);
+
+        if (!userService.authenticated(token)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "You need to be logged in to do this");
+        }
+
+        User currentUser = userService.getUserByToken(token);
+        Group group = groupService.getGroupById(groupId);
+
+        if (!groupService.isMember(group, currentUser)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not a member of this group");
+        }
+
+        GroupDetailsResponseDTO response = DTOMapper.INSTANCE.convertEntityToGroupDetailsResponseDTO(group);
+        response.setJoinUrl("/groups/join/" + group.getJoinToken());
+        return response;
+    }
+
     @PostMapping("/groups/join/{joinToken}")
     @ResponseStatus(HttpStatus.OK)
     @ResponseBody
