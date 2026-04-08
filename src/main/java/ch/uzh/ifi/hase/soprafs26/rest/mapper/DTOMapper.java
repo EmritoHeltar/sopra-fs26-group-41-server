@@ -1,5 +1,6 @@
 package ch.uzh.ifi.hase.soprafs26.rest.mapper;
 
+import ch.uzh.ifi.hase.soprafs26.entity.Group;
 import ch.uzh.ifi.hase.soprafs26.rest.dto.*;
 import org.mapstruct.*;
 import org.mapstruct.factory.Mappers;
@@ -52,4 +53,11 @@ public interface DTOMapper {
     //@Mapping(source = "topGenres", target = "stats.topGenres")
     @Mapping(target = "stats.topGenres", ignore = true)
     UsersGetDTO convertEntityToUsersGetDTO(User user);
+
+    @Mapping(source = "id", target = "id")
+    @Mapping(source = "groupName", target = "name")
+    @Mapping(source = "owner", target = "owner")
+    @Mapping(source = "profilePicture", target = "groupProfilePicture")
+    @Mapping(source = "joinToken", target = "joinUrl")
+    GroupCreateResponseDTO convertEntityToGroupCreateResponseDTO(Group group);
 }
