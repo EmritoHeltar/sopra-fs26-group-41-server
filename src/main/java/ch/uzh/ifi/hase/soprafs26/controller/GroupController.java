@@ -1,47 +1,45 @@
 package ch.uzh.ifi.hase.soprafs26.controller;
 
-import ch.uzh.ifi.hase.soprafs26.service.PasswordService;
+import ch.uzh.ifi.hase.soprafs26.entity.Group;
+import ch.uzh.ifi.hase.soprafs26.rest.dto.GroupJoinResponseDTO;
+import ch.uzh.ifi.hase.soprafs26.service.GroupService;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import ch.uzh.ifi.hase.soprafs26.entity.User;
-import ch.uzh.ifi.hase.soprafs26.rest.dto.UserGetDTO;
-import ch.uzh.ifi.hase.soprafs26.rest.dto.UserPostDTO;
-import ch.uzh.ifi.hase.soprafs26.rest.mapper.DTOMapper;
 import ch.uzh.ifi.hase.soprafs26.service.UserService;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 public class GroupController {
 
-	private final UserService userService;
+    private final UserService userService;
     private final GroupService groupService;
 
-	RegistrationController(UserService userService, PasswordService passwordService) {
-		this.userService = userService;
+    GroupController(UserService userService, GroupService groupService) {
+        this.userService = userService;
         this.groupService = groupService;
-	}
+    }
 
-@PostMapping("/groups/join/{joinToken}")
-@ResponseStatus(HttpStatus.OK)
-@ResponseBody
-public GroupJoinResponseDTO joinGroup(
-    @PathVariable String joinToken, 
-    @RequestHeader(value = "Authorization", required = true) String token) {
-    
-    // 1. Identify the user via the service using the provided token
-    User user = userService.findUserByToken(token); 
-    
-    // 2. Delegate the join logic to the service
-    Group joinedGroup = groupService.joinGroupByToken(joinToken, user);
-    
-    // 3. Return the response DTO containing the groupUrl (inviteLink)
-    GroupJoinResponseDTO response = new GroupJoinResponseDTO();
-    response.setGroupUrl(joinedGroup.getInviteLink());
-    
-    return response;
-}
+    @PostMapping("/groups/join/{joinToken}")
+    @ResponseStatus(HttpStatus.OK)
+    @ResponseBody
+    public GroupJoinResponseDTO joinGroup(
+            @PathVariable String joinToken,
+            @RequestHeader(value = "Authorization", required = true) String authorization) {
+
+        String token = AuthenticationController.getAuthorizationToken(authorization);
+
+        if (!userService.authenticated(token)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "You need to be logged in to do this");
+        }
+        User user = userService.getUserByToken(token);
+
+        Group joinedGroup = groupService.joinGroupByToken(joinToken, user);
+
+        GroupJoinResponseDTO response = new GroupJoinResponseDTO();
+        response.setGroupUrl(joinedGroup.getInviteLink());
+
+        return response;
+    }
 }

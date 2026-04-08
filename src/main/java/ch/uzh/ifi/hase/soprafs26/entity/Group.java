@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import ch.uzh.ifi.hase.soprafs26.constant.UserStatus;
 
 import java.io.Serializable;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -42,6 +43,8 @@ public class Group implements Serializable {
     private String inviteLink;
 
     private String joinToken;
+
+    private TasteProfile groupTasteProfile;
 
     //private Canvas ProfilePicture
     @ManyToOne
