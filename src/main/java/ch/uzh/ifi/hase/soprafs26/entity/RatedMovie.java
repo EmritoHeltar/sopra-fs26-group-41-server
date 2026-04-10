@@ -8,11 +8,18 @@ import java.io.Serializable;
 @Embeddable
 public class RatedMovie implements Serializable {
 
+    @Column(name = "movie_id", nullable = false)
+    private String movieId;
+
     @Column(name = "movie_name", nullable = false)
     private String name;
 
     @Column(name = "movie_rating", nullable = false)
     private float rating;
+
+    public String getMovieId() {return movieId;}
+
+    public void setMovieId(String movieId) {this.movieId = movieId;}
 
     public String getName() {
         return name;
@@ -29,4 +36,6 @@ public class RatedMovie implements Serializable {
     public void setRating(float rating) {
         this.rating = rating;
     }
+
+
 }

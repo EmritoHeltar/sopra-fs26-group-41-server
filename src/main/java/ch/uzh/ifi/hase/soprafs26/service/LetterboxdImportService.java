@@ -31,10 +31,12 @@ import java.util.zip.ZipInputStream;
 @Service
 public class LetterboxdImportService {
     private final UserRepository userRepository;
+    private final MovieSearchService movieSearchService;
     private final Logger log = LoggerFactory.getLogger(LetterboxdImportService.class);
 
-    public LetterboxdImportService(@Qualifier("userRepository") UserRepository userRepository) {
+    public LetterboxdImportService(@Qualifier("userRepository") UserRepository userRepository,MovieSearchService movieSearchService) {
         this.userRepository = userRepository;
+        this.movieSearchService = movieSearchService;
     }
 
     @Transactional
@@ -44,13 +46,28 @@ public class LetterboxdImportService {
             ratingsCsv = findFileContentInZip(is, "ratings.csv", StandardCharsets.UTF_8);
         }
 
-        List<RatedMovie> ratedMovies = parseRatedMovies(ratingsCsv);
+        // 1. Parse the CSV exactly as before (method remains static)
+        List<RatedMovie> rawParsedMovies = parseRatedMovies(ratingsCsv);
+        List<RatedMovie> validRatedMovies = new ArrayList<>();
+
+        // 2. NEW: Second pass to fetch and attach microservice IDs
+        for (RatedMovie movie : rawParsedMovies) {
+            String internalId = movieSearchService.fetchInternalMovieId(movie.getName());
+
+            if (internalId != null) {
+                movie.setMovieId(internalId);
+                validRatedMovies.add(movie);
+            } else {
+                log.warn("Skipping '{}' - no ID found in microservice.", movie.getName());
+            }
+        }
 
         LetterboxdImportResponse response = new LetterboxdImportResponse();
         LetterboxdImportResponse.Stats stats = new LetterboxdImportResponse.Stats();
 
-        stats.setMoviesLogged(ratedMovies.size());
-        int highlyRated = (int) ratedMovies.stream()
+        // 3. Use 'validRatedMovies' for the rest of your logic instead of the raw list
+        stats.setMoviesLogged(validRatedMovies.size());
+        int highlyRated = (int) validRatedMovies.stream()
                 .filter(movie -> movie.getRating() >= 4.5)
                 .count();
         stats.setTopGenres(Collections.emptyList());
@@ -58,22 +75,18 @@ public class LetterboxdImportService {
         response.setStats(stats);
 
         TasteProfile tasteProfile = new TasteProfile();
-        tasteProfile.setRatedMovies(ratedMovies);
+        tasteProfile.setRatedMovies(validRatedMovies); // Use the valid list here
         tasteProfile.setHighlyRatedMovies(highlyRated);
         user.setTasteProfile(tasteProfile);
-        user.setHasLetterboxdData(!ratedMovies.isEmpty());
+        user.setHasLetterboxdData(!validRatedMovies.isEmpty());
         User savedUser = userRepository.save(user);
         userRepository.flush();
 
-
-
-
         response.setId(savedUser.getId());
         response.setUsername(savedUser.getUsername());
-        response.setHasLetterboxdData(!ratedMovies.isEmpty());
+        response.setHasLetterboxdData(!validRatedMovies.isEmpty());
 
         log.debug("Imported Letterboxd Data for user {}", savedUser.getUsername());
-
 
         return response;
     }
