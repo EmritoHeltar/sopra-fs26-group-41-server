@@ -10,6 +10,16 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
+import ch.uzh.ifi.hase.soprafs26.entity.User;
+import ch.uzh.ifi.hase.soprafs26.entity.RatedMovie;
+import ch.uzh.ifi.hase.soprafs26.rest.dto.CatalogMovieDTO;
+import org.springframework.web.util.UriComponentsBuilder;
+
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 
 @Service
 public class MovieSearchService {
@@ -20,7 +30,31 @@ public class MovieSearchService {
     @Value("${omdb.base.url}")
     private String baseUrl;
 
+    @Value("${recommendation.service.url}") //Will need to adjust as soon as i have the implementation ready from my friend
+    private String recommendationUrl;
+
     private final RestTemplate restTemplate = new RestTemplate();
+
+    private String getGoogleCloudToken(String audienceUrl) {
+        try {
+            RestTemplate metadataTemplate = new RestTemplate();
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Metadata-Flavor", "Google");
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            // This calls the internal Google server (only works when deployed to App Engine)
+            ResponseEntity<String> response = metadataTemplate.exchange(
+                    "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=" + audienceUrl,
+                    HttpMethod.GET,
+                    entity,
+                    String.class
+            );
+            return response.getBody();
+        } catch (Exception e) {
+            // If testing locally on your laptop, this will fail. Return null to fallback to unauthenticated.
+            return null;
+        }
+    }
 
     public MovieSearchResponseDTO searchMovies(String query) {
         String url = UriComponentsBuilder.fromUriString(baseUrl)
@@ -59,7 +93,7 @@ public class MovieSearchService {
         return response;
     }
 
-    public MovieDetailsResultDTO searchMovieDetails(String movieId) {
+    public MovieDetailsResultDTO searchMovieDetails(String movieId, User user) {
         String url = UriComponentsBuilder.fromUriString(baseUrl)
                 .queryParam("apikey", apiKey)
                 .queryParam("i", movieId)
@@ -77,6 +111,7 @@ public class MovieSearchService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Movie not found");
         }
 
+
         MovieDetailsResultDTO result = new MovieDetailsResultDTO();
         result.setId(movieDetails.getImdbID());
         result.setTitle(movieDetails.getTitle());
@@ -87,8 +122,51 @@ public class MovieSearchService {
         result.setRuntime(movieDetails.getRuntime());
         result.setGenres(movieDetails.getGenre());
         result.setImdbRating(movieDetails.getImdbRating());
-        // TODO: implement taste overlap
-        result.setTasteOverlap(null);
+        String internalMovieId = fetchInternalMovieId(movieDetails.getTitle());
+        List<Long> watchedIds = new ArrayList<>();
+        if (user != null && user.getTasteProfile() != null) {
+            watchedIds = user.getTasteProfile().getRatedMovies().stream()
+                    // Assuming your RatedMovie.getMovieId() returns a string of numbers
+                    .map(ratedMovie -> Long.parseLong(ratedMovie.getMovieId()))
+                    .collect(Collectors.toList());
+        }
+        try {
+            OverlapRequestDTO requestPayload = new OverlapRequestDTO(watchedIds, internalMovieId);
+            String overlapUrl = recommendationUrl + "/calculate-overlap";
+
+            // -- NEW AUTHENTICATION LOGIC --
+            HttpHeaders headers = new HttpHeaders();
+            String token = getGoogleCloudToken(recommendationUrl);
+            if (token != null) {
+                headers.setBearerAuth(token); // Attaches "Authorization: Bearer <token>"
+            }
+            HttpEntity<OverlapRequestDTO> requestEntity = new HttpEntity<>(requestPayload, headers);
+            // ------------------------------
+
+            // Note the change from postForObject to exchange so we can pass the headers
+            ResponseEntity<OverlapResponseDTO> responseEntity = restTemplate.exchange(
+                    overlapUrl,
+                    HttpMethod.POST,
+                    requestEntity,
+                    OverlapResponseDTO.class
+            );
+
+            OverlapResponseDTO overlapResponse = responseEntity.getBody();
+
+            // 4. Convert float score (e.g., 0.854) to an Integer percentage (85)
+            if (overlapResponse != null && overlapResponse.getOverlap_score() != null) {
+                int percentageScore = (int) Math.round(overlapResponse.getOverlap_score() * 100);
+                result.setTasteOverlap(percentageScore);
+            } else {
+                result.setTasteOverlap(0); // Fallback if microservice returns null
+            }
+
+        } catch (Exception e) {
+            // Log the error in a real app, but fail gracefully so the user still gets movie details
+            System.err.println("Failed to fetch taste overlap: " + e.getMessage());
+            result.setTasteOverlap(null);
+        }
+        //result.setTasteOverlap(null);
 
         return result;
     }
@@ -105,5 +183,46 @@ public class MovieSearchService {
         catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    public String fetchInternalMovieId(String movieName) {
+        if (movieName == null || movieName.trim().isEmpty()) {
+            return null;
+        }
+
+        String url = UriComponentsBuilder.fromUriString(recommendationUrl)
+                .path("/movie/search")
+                .queryParam("q", movieName)
+                .toUriString();
+
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            String token = getGoogleCloudToken(recommendationUrl);
+            if (token != null) {
+                headers.setBearerAuth(token);
+            }
+
+            // Use HttpEntity with headers, but no body (since it's a GET request)
+            HttpEntity<Void> requestEntity = new HttpEntity<>(headers);
+
+            // Use exchange instead of getForObject to pass the headers
+            ResponseEntity<CatalogMovieDTO[]> responseEntity = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    requestEntity,
+                    CatalogMovieDTO[].class
+            );
+
+            CatalogMovieDTO[] results = responseEntity.getBody();
+
+            if (results != null && results.length > 0) {
+                // Grab the first result's ID and convert to String
+                return String.valueOf(results[0].getId());
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to fetch internal ID for movie '" + movieName + "': " + e.getMessage());
+        }
+
+        return null;
     }
 }

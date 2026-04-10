@@ -8,6 +8,8 @@
 *.war
 *.ear
 
+#local Database files
+*.db
 #Gradle temporary files
 target/
 

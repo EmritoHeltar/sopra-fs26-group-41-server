@@ -1,5 +1,6 @@
 package ch.uzh.ifi.hase.soprafs26.controller;
 
+import ch.uzh.ifi.hase.soprafs26.entity.User;
 import ch.uzh.ifi.hase.soprafs26.rest.dto.MovieDetailsResultDTO;
 import ch.uzh.ifi.hase.soprafs26.rest.dto.MovieSearchResponseDTO;
 import ch.uzh.ifi.hase.soprafs26.service.MovieSearchService;
@@ -8,6 +9,9 @@ import jakarta.websocket.server.PathParam;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 public class MovieSearchController {
@@ -42,7 +46,8 @@ public class MovieSearchController {
         if (!userService.authenticated(token)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "You need to be logged in to do this");
         }
+        User user = userService.getUserByToken(token);
 
-        return movieSearchService.searchMovieDetails(movieId);
+        return movieSearchService.searchMovieDetails(movieId,user);
     }
 }
