@@ -188,6 +188,79 @@ def search_movies_bulk():
     return jsonify(results_dict)
 
 
+@app.route('/recommend', methods=['POST'])
+def recommend_movies():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid JSON payload"}), 400
+
+    watched_ids = data.get('watched_ids', [])
+    limit = int(data.get('limit', 10))
+    offset = int(data.get('offset', 0))
+
+    if not watched_ids:
+        return jsonify([])
+
+    try:
+        # --- 1. Calculate Recommendations ---
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        placeholders = ','.join(['?'] * len(watched_ids))
+        query = f"""
+            SELECT
+                CASE
+                    WHEN movie_a IN ({placeholders}) THEN movie_b
+                    ELSE movie_a
+                END AS candidate_id,
+                (
+                   MAX(0.0, MIN(1.0, ((SUM(rating_sum) * 1.0 / SUM(count)) - 20.0) / 80.0))
+                   *
+                   MIN(1.0, SUM(count) * 1.0 / 50.0)
+                ) as overlap_score
+            FROM connections
+            WHERE movie_a IN ({placeholders}) OR movie_b IN ({placeholders})
+            GROUP BY candidate_id
+            HAVING candidate_id NOT IN ({placeholders})
+            ORDER BY overlap_score DESC
+            LIMIT ? OFFSET ?
+        """
+        params = watched_ids * 4 + [limit, offset]
+        cursor.execute(query, params)
+        results = cursor.fetchall()
+        conn.close()
+
+        if not results:
+            return jsonify([])
+
+        # --- 2. Fetch Titles from the Catalog DB ---
+        rec_ids = [row[0] for row in results]
+        catalog_conn = sqlite3.connect(f"file:{CATALOG_DB_PATH}?mode=ro", uri=True)
+        catalog_cursor = catalog_conn.cursor()
+        
+        id_placeholders = ','.join(['?'] * len(rec_ids))
+        catalog_cursor.execute(f"SELECT id, title FROM movies WHERE id IN ({id_placeholders})", rec_ids)
+        
+        # Build a dictionary for instant title lookups
+        titles_map = {row[0]: row[1] for row in catalog_cursor.fetchall()}
+        catalog_conn.close()
+
+        # --- 3. Build Final Output ---
+        recommendations = [
+            {
+                "movie_id": str(row[0]), 
+                "title": titles_map.get(row[0], "Unknown Title"), # Map the title
+                "overlap_score": round(row[1], 4)
+            }
+            for row in results
+        ]
+
+        return jsonify(recommendations)
+
+    except Exception as e:
+        app.logger.error(f"Error calculating recommendations: {e}")
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8081)))
