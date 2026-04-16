@@ -1,18 +1,33 @@
 package ch.uzh.ifi.hase.soprafs26.controller;
 
-import ch.uzh.ifi.hase.soprafs26.entity.FetchedMovie;
-import ch.uzh.ifi.hase.soprafs26.entity.Group;
-import ch.uzh.ifi.hase.soprafs26.rest.dto.*;
-import ch.uzh.ifi.hase.soprafs26.rest.mapper.DTOMapper;
-import ch.uzh.ifi.hase.soprafs26.service.GroupService;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.*;
+import java.util.List;
 
-import ch.uzh.ifi.hase.soprafs26.entity.User;
-import ch.uzh.ifi.hase.soprafs26.service.UserService;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.List;
+import ch.uzh.ifi.hase.soprafs26.entity.FetchedMovie;
+import ch.uzh.ifi.hase.soprafs26.entity.Group;
+import ch.uzh.ifi.hase.soprafs26.entity.User;
+import ch.uzh.ifi.hase.soprafs26.rest.dto.GroupCreatePostDTO;
+import ch.uzh.ifi.hase.soprafs26.rest.dto.GroupCreateResponseDTO;
+import ch.uzh.ifi.hase.soprafs26.rest.dto.GroupDetailsResponseDTO;
+import ch.uzh.ifi.hase.soprafs26.rest.dto.GroupJoinResponseDTO;
+import ch.uzh.ifi.hase.soprafs26.rest.dto.GroupLeaveResponseDTO;
+import ch.uzh.ifi.hase.soprafs26.rest.dto.GroupRecommendationDTO;
+import ch.uzh.ifi.hase.soprafs26.rest.dto.GroupSummaryDTO;
+import ch.uzh.ifi.hase.soprafs26.rest.dto.GroupsGetResponseDTO;
+import ch.uzh.ifi.hase.soprafs26.rest.dto.RecommendedMovieDTO;
+import ch.uzh.ifi.hase.soprafs26.rest.mapper.DTOMapper;
+import ch.uzh.ifi.hase.soprafs26.service.GroupService;
+import ch.uzh.ifi.hase.soprafs26.service.UserService;
 
 @RestController
 public class GroupController {
@@ -117,6 +132,29 @@ public class GroupController {
 
         return response;
     }
+
+    @PostMapping("/groups/{groupId}/leave")
+    @ResponseStatus(HttpStatus.OK)
+    @ResponseBody
+    public GroupLeaveResponseDTO leaveGroup(
+            @PathVariable Long groupId,
+            @RequestHeader(value = "Authorization", required = true) String authorization) {
+
+        String token = AuthenticationController.getAuthorizationToken(authorization);
+
+        if (!userService.authenticated(token)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "You need to be logged in to do this");
+        }
+
+        User user = userService.getUserByToken(token);
+        groupService.leaveGroup(groupId, user);
+
+        GroupLeaveResponseDTO response = new GroupLeaveResponseDTO();
+        response.setMessage("User successfully left the group");
+
+        return response;
+    }
+
     @GetMapping("/groups/{groupId}/recommendations")
     @ResponseStatus(HttpStatus.OK)
     @ResponseBody

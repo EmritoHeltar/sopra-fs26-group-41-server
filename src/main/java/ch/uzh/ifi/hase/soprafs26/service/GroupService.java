@@ -45,9 +45,9 @@ public class GroupService {
 
     public Group joinGroupByToken(String joinToken, User user) {
         log.debug("Attempting to join group with token: {} for user: {}", joinToken, user.getUsername());
-        
+
         Group group = groupRepository.findGroupByJoinToken(joinToken);
-        
+
         if (group == null) {
             log.error("Failed to join group. Invalid join token: {}", joinToken);
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Invalid join token");
@@ -66,7 +66,7 @@ public class GroupService {
         }
         group.setGroupTasteProfile(TasteProfile.MergeTasteProfiles(tasteProfiles)); //  this should work and merge the tasteprofiles there surely is a more efficient way but we ball
         log.info("Successfully added user {} to group {}", user.getUsername(), group.getGroupName());
-        
+
         // Save and return the updated group
         return groupRepository.save(group);
     }
@@ -135,5 +135,25 @@ public class GroupService {
         if (!isEligible) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "No Members have uploaded a Taste Profile");
         }
+    }
+
+    public void leaveGroup(Long groupId, User user) {
+        log.debug("User {} attempting to leave group {}", user.getUsername(), groupId);
+
+        // Fetch group or throw 404 if it doesn't exist
+        Group group = groupRepository.findById(groupId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Group not found"));
+
+        // Failure: User is not a member (403 Forbidden)
+        if (group.getMembers() == null || !group.getMembers().contains(user)) {
+            log.warn("User {} tried to leave group {} but is not a member.", user.getUsername(), groupId);
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User is not a member of the group");
+        }
+
+        // Remove user and save
+        group.removeMember(user);
+        log.info("User {} successfully left group {}", user.getUsername(), groupId);
+
+        groupRepository.save(group);
     }
 }
