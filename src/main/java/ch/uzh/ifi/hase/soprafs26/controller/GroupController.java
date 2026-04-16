@@ -163,6 +163,7 @@ public class GroupController {
             @RequestHeader(value = "Authorization", required = true) String authorization) {
 
         String token = AuthenticationController.getAuthorizationToken(authorization);
+        
 
         if (!userService.authenticated(token)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "You need to be logged in to do this");
