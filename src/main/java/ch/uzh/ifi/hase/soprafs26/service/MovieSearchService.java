@@ -1,5 +1,6 @@
 package ch.uzh.ifi.hase.soprafs26.service;
 
+import ch.uzh.ifi.hase.soprafs26.entity.RatedMovie;
 import ch.uzh.ifi.hase.soprafs26.rest.dto.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
@@ -13,9 +14,7 @@ import java.net.URI;
 import java.util.*;
 import java.util.stream.Collectors;
 import ch.uzh.ifi.hase.soprafs26.entity.User;
-import ch.uzh.ifi.hase.soprafs26.entity.RatedMovie;
 import ch.uzh.ifi.hase.soprafs26.rest.dto.CatalogMovieDTO;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -96,7 +95,7 @@ public class MovieSearchService {
         return response;
     }
 
-    public MovieDetailsResultDTO searchMovieDetails(String movieId, User user) {
+    public MovieDetailsResultDTO searchMovieDetails(String movieId) {
         String url = UriComponentsBuilder.fromUriString(baseUrl)
                 .queryParam("apikey", apiKey)
                 .queryParam("i", movieId)
@@ -125,28 +124,40 @@ public class MovieSearchService {
         result.setRuntime(movieDetails.getRuntime());
         result.setGenres(movieDetails.getGenre());
         result.setImdbRating(movieDetails.getImdbRating());
+        return result;
+    }
+
+    public MovieTasteOverlapResultDTO getMovieTasteOverlap(String movieId, User user) {
+        MovieDetailsResultDTO movieDetails = searchMovieDetails(movieId);
+
+        MovieTasteOverlapResultDTO result = new MovieTasteOverlapResultDTO();
+        result.setMovieId(movieDetails.getId());
+        result.setTasteOverlap(null);
+
         String internalMovieId = fetchInternalMovieId(movieDetails.getTitle());
+        if (internalMovieId == null) {
+            return result;
+        }
+
         List<Long> watchedIds = new ArrayList<>();
         if (user != null && user.getTasteProfile() != null) {
             watchedIds = user.getTasteProfile().getRatedMovies().stream()
-                    // Assuming your RatedMovie.getMovieId() returns a string of numbers
-                    .map(ratedMovie -> Long.parseLong(ratedMovie.getMovieId()))
+                    .map(RatedMovie::getMovieId)
+                    .map(Long::parseLong)
                     .collect(Collectors.toList());
         }
+
         try {
             OverlapRequestDTO requestPayload = new OverlapRequestDTO(watchedIds, internalMovieId);
             String overlapUrl = recommendationUrl + "/calculate-overlap";
 
-            // -- NEW AUTHENTICATION LOGIC --
             HttpHeaders headers = new HttpHeaders();
             String token = getGoogleCloudToken(recommendationUrl);
             if (token != null) {
-                headers.setBearerAuth(token); // Attaches "Authorization: Bearer <token>"
+                headers.setBearerAuth(token);
             }
             HttpEntity<OverlapRequestDTO> requestEntity = new HttpEntity<>(requestPayload, headers);
-            // ------------------------------
 
-            // Note the change from postForObject to exchange so we can pass the headers
             ResponseEntity<OverlapResponseDTO> responseEntity = restTemplate.exchange(
                     overlapUrl,
                     HttpMethod.POST,
@@ -155,21 +166,15 @@ public class MovieSearchService {
             );
 
             OverlapResponseDTO overlapResponse = responseEntity.getBody();
-
-            // 4. Convert float score (e.g., 0.854) to an Integer percentage (85)
             if (overlapResponse != null && overlapResponse.getOverlap_score() != null) {
                 int percentageScore = (int) Math.round(overlapResponse.getOverlap_score() * 100);
                 result.setTasteOverlap(percentageScore);
             } else {
-                result.setTasteOverlap(0); // Fallback if microservice returns null
+                result.setTasteOverlap(0);
             }
-
         } catch (Exception e) {
-            // Log the error in a real app, but fail gracefully so the user still gets movie details
             System.err.println("Failed to fetch taste overlap: " + e.getMessage());
-            result.setTasteOverlap(null);
         }
-        //result.setTasteOverlap(null);
 
         return result;
     }

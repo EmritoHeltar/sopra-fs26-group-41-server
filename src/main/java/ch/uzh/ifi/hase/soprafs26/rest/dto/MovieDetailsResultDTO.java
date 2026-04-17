@@ -1,7 +1,5 @@
 package ch.uzh.ifi.hase.soprafs26.rest.dto;
 
-import java.util.Collection;
-
 public class MovieDetailsResultDTO {
     private String id;
     private String title;
@@ -12,7 +10,6 @@ public class MovieDetailsResultDTO {
     private String genres;
     private String runtime;
     private String imdbRating;
-    private Integer tasteOverlap;
 
     public String getId() {
         return id;
@@ -84,13 +81,5 @@ public class MovieDetailsResultDTO {
 
     public void setImdbRating(String imdbRating) {
         this.imdbRating = imdbRating;
-    }
-
-    public Integer getTasteOverlap() {
-        return tasteOverlap;
-    }
-
-    public void setTasteOverlap(Integer tasteOverlap) {
-        this.tasteOverlap = tasteOverlap;
     }
 }
