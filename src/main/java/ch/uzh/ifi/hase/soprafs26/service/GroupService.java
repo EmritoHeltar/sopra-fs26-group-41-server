@@ -130,7 +130,7 @@ public class GroupService {
     }
     public void checkRecommendedMoviesEligibility(Group group) {
         boolean isEligible = group.getMembers().stream()
-                .anyMatch(u -> !u.getTasteProfile().getRatedMovies().isEmpty()); // Had to ask Ai to recode this because Java doesn't leave functions with a return:( also i couldn't use return cause it's a void.
+                .anyMatch(u -> !u.getTasteProfile().getRatedMovies().isEmpty());
 
         if (!isEligible) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "No Members have uploaded a Taste Profile");

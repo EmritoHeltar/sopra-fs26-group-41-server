@@ -28,16 +28,19 @@ import ch.uzh.ifi.hase.soprafs26.rest.dto.RecommendedMovieDTO;
 import ch.uzh.ifi.hase.soprafs26.rest.mapper.DTOMapper;
 import ch.uzh.ifi.hase.soprafs26.service.GroupService;
 import ch.uzh.ifi.hase.soprafs26.service.UserService;
+import ch.uzh.ifi.hase.soprafs26.service.PollService;
 
 @RestController
 public class GroupController {
 
     private final UserService userService;
     private final GroupService groupService;
+    private final PollService pollService;
 
-    GroupController(UserService userService, GroupService groupService) {
+    GroupController(UserService userService, GroupService groupService, PollService pollService) {
         this.userService = userService;
         this.groupService = groupService;
+        this.pollService = pollService;
     }
 
     @PostMapping("/groups")
@@ -201,5 +204,21 @@ public class GroupController {
         response.setRecommendations(movieDTOs);
 
         return response;
+    }
+
+    @PostMapping("/groups/{groupId}/poll")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void startPoll(
+            @PathVariable Long groupId,
+            @RequestHeader(value = "Authorization", required = true) String authorization) {
+
+        String token = AuthenticationController.getAuthorizationToken(authorization);
+
+        if (!userService.authenticated(token)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "You need to be logged in to do this");
+        }
+
+        User user = userService.getUserByToken(token);
+        pollService.startPoll(groupId, user);
     }
 }

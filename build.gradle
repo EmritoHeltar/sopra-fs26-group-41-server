@@ -34,6 +34,7 @@ springBoot {
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.xerial:sqlite-jdbc:3.45.2.0'
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
 
     implementation 'org.mapstruct:mapstruct:1.5.5.Final'
     annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
