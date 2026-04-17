@@ -272,6 +272,7 @@ def recommend_movies():
             WHERE movie_a IN ({placeholders}) OR movie_b IN ({placeholders})
             GROUP BY candidate_id
             HAVING candidate_id NOT IN ({placeholders})
+            AND COUNT >= 100
             ORDER BY overlap_score DESC
             LIMIT ? OFFSET ?
         """
