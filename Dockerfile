@@ -1,6 +1,10 @@
 FROM gradle:9.2.1-jdk17 AS build
 # Set container working directory to /app
 WORKDIR /app
+
+ARG OMDB_API_KEY
+ENV OMDB_API_KEY=$OMDB_API_KEY
+
 # Copy Gradle configuration files
 COPY gradlew /app/
 COPY gradle /app/gradle
