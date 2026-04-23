@@ -25,6 +25,11 @@ import ch.uzh.ifi.hase.soprafs26.rest.dto.GroupRecommendationDTO;
 import ch.uzh.ifi.hase.soprafs26.rest.dto.GroupSummaryDTO;
 import ch.uzh.ifi.hase.soprafs26.rest.dto.GroupsGetResponseDTO;
 import ch.uzh.ifi.hase.soprafs26.rest.dto.RecommendedMovieDTO;
+import ch.uzh.ifi.hase.soprafs26.rest.dto.poll.ActivePollResponseDTO;
+import ch.uzh.ifi.hase.soprafs26.rest.dto.poll.PollResultsResponseDTO;
+import ch.uzh.ifi.hase.soprafs26.rest.dto.poll.PollStartResponseDTO;
+import ch.uzh.ifi.hase.soprafs26.rest.dto.poll.PollVoteResponseDTO;
+import ch.uzh.ifi.hase.soprafs26.rest.dto.poll.PollVoteSubmissionDTO;
 import ch.uzh.ifi.hase.soprafs26.rest.mapper.DTOMapper;
 import ch.uzh.ifi.hase.soprafs26.service.GroupService;
 import ch.uzh.ifi.hase.soprafs26.service.UserService;
@@ -207,8 +212,9 @@ public class GroupController {
     }
 
     @PostMapping("/groups/{groupId}/poll")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void startPoll(
+    @ResponseStatus(HttpStatus.CREATED)
+    @ResponseBody
+    public PollStartResponseDTO startPoll(
             @PathVariable Long groupId,
             @RequestHeader(value = "Authorization", required = true) String authorization) {
 
@@ -219,6 +225,58 @@ public class GroupController {
         }
 
         User user = userService.getUserByToken(token);
-        pollService.startPoll(groupId, user);
+        return pollService.startPoll(groupId, user);
+    }
+
+    @GetMapping("/groups/{groupId}/poll")
+    @ResponseStatus(HttpStatus.OK)
+    @ResponseBody
+    public ActivePollResponseDTO getActivePoll(
+            @PathVariable Long groupId,
+            @RequestHeader(value = "Authorization", required = true) String authorization) {
+
+        String token = AuthenticationController.getAuthorizationToken(authorization);
+
+        if (!userService.authenticated(token)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "You need to be logged in to do this");
+        }
+
+        User user = userService.getUserByToken(token);
+        return pollService.getActivePoll(groupId, user);
+    }
+
+    @PostMapping("/groups/{groupId}/vote")
+    @ResponseStatus(HttpStatus.OK)
+    @ResponseBody
+    public PollVoteResponseDTO submitPollVote(
+            @PathVariable Long groupId,
+            @RequestHeader(value = "Authorization", required = true) String authorization,
+            @RequestBody PollVoteSubmissionDTO submission) {
+
+        String token = AuthenticationController.getAuthorizationToken(authorization);
+
+        if (!userService.authenticated(token)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "You need to be logged in to do this");
+        }
+
+        User user = userService.getUserByToken(token);
+        return pollService.submitVotes(groupId, user, submission);
+    }
+
+    @GetMapping("/groups/{groupId}/results")
+    @ResponseStatus(HttpStatus.OK)
+    @ResponseBody
+    public PollResultsResponseDTO getPollResults(
+            @PathVariable Long groupId,
+            @RequestHeader(value = "Authorization", required = true) String authorization) {
+
+        String token = AuthenticationController.getAuthorizationToken(authorization);
+
+        if (!userService.authenticated(token)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "You need to be logged in to do this");
+        }
+
+        User user = userService.getUserByToken(token);
+        return pollService.getPollResults(groupId, user);
     }
 }
