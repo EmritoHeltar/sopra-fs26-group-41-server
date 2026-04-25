@@ -180,6 +180,62 @@ public class MovieSearchService {
 
         return result;
     }
+    public Integer getUserTasteOverlap(User currentUser, User targetUser) {
+        if (currentUser == null || targetUser == null ||
+                currentUser.getTasteProfile() == null || targetUser.getTasteProfile() == null ||
+                currentUser.getTasteProfile().getRatedMovies() == null ||
+                targetUser.getTasteProfile().getRatedMovies() == null) {
+            return 0;
+        }
+
+        // Map Movie IDs to their actual ratings
+        Map<String, Number> currentUserRatings = currentUser.getTasteProfile().getRatedMovies().stream()
+                .collect(Collectors.toMap(
+                        RatedMovie::getMovieId,
+                        RatedMovie::getRating,
+                        (existing, replacement) -> existing // Pragmatic safeguard against duplicate movie entries
+                ));
+
+        Map<String, Number> targetUserRatings = targetUser.getTasteProfile().getRatedMovies().stream()
+                .collect(Collectors.toMap(
+                        RatedMovie::getMovieId,
+                        RatedMovie::getRating,
+                        (existing, replacement) -> existing
+                ));
+
+        if (currentUserRatings.isEmpty() || targetUserRatings.isEmpty()) {
+            return 0;
+        }
+
+        try {
+            String url = recommendationUrl + "/user-overlap";
+            HttpHeaders headers = new HttpHeaders();
+            String token = getGoogleCloudToken(recommendationUrl);
+            if (token != null) {
+                headers.setBearerAuth(token);
+            }
+
+            // Create payload holding both maps
+            Map<String, Map<String, Number>> requestPayload = new HashMap<>();
+            requestPayload.put("user1_ratings", currentUserRatings);
+            requestPayload.put("user2_ratings", targetUserRatings);
+
+            HttpEntity<Map<String, Map<String, Number>>> requestEntity = new HttpEntity<>(requestPayload, headers);
+
+            ResponseEntity<Map> responseEntity = restTemplate.exchange(
+                    url, HttpMethod.POST, requestEntity, Map.class
+            );
+
+            Map<String, Object> responseBody = responseEntity.getBody();
+            if (responseBody != null && responseBody.containsKey("overlap_score")) {
+                return (Integer) responseBody.get("overlap_score");
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to fetch weighted user taste overlap: " + e.getMessage());
+        }
+
+        return 0;
+    }
 
     private Integer parseYear(String yearValue) {
         if (yearValue == null || yearValue.isBlank()) {

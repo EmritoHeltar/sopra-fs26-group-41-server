@@ -332,6 +332,104 @@ def recommend_movies():
     app.logger.error(f"Error calculating recommendations: {e}")
     return jsonify({"error": str(e)}), 500
 
+@app.route("/user-overlap", methods=["POST"])
+def calculate_user_overlap():
+    data = request.get_json()
+    user1 = data.get("user1_ratings", {})  # Dict of {movie_id: rating}
+    user2 = data.get("user2_ratings", {})
+
+    if not user1 or not user2:
+        return jsonify({"overlap_score": 0})
+
+    user1_ids = set(user1.keys())
+    user2_ids = set(user2.keys())
+    print(user1)
+    shared_ids = user1_ids.intersection(user2_ids)
+    union_ids = user1_ids.union(user2_ids)
+
+    # Dynamically find the max rating used (e.g., handles both 5-star and 10-star scales)
+    max_rating = float(max(max(user1.values(), default=1), max(user2.values(), default=1), 5.0))
+    total_score = 0.0
+
+    # --- 1. DIRECT OVERLAP (Shared Movies) ---
+    for mid in shared_ids:
+        r1 = float(user1[mid])
+        r2 = float(user2[mid])
+        # Penalty for rating difference
+        rating_diff = abs(r1 - r2)
+        match_score = max(0.0, 1.0 - (rating_diff / max_rating))
+        total_score += match_score
+
+    # --- 2. INDIRECT OVERLAP (Graph Connections) ---
+    u1_unique = list(user1_ids - shared_ids)
+    u2_unique = list(user2_ids - shared_ids)
+
+    if u1_unique and u2_unique:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        p1 = ",".join(["?"] * len(u1_unique))
+        p2 = ",".join(["?"] * len(u2_unique))
+
+        # Fetch only edges bridging the users' unique libraries
+        query = f"""
+            SELECT movie_a, movie_b, rating_sum, count
+            FROM connections
+            WHERE (movie_a IN ({p1}) AND movie_b IN ({p2}))
+               OR (movie_b IN ({p1}) AND movie_a IN ({p2}))
+        """
+        params = u1_unique + u2_unique + u1_unique + u2_unique
+        cursor.execute(query, params)
+        edges = cursor.fetchall()
+        conn.close()
+
+        # To prevent score inflation, we only map the *single best* connection for each movie
+        best_indirect_matches = {}
+
+        for row in edges:
+            ma, mb, r_sum, count = str(row[0]), str(row[1]), row[2], row[3]
+
+            # Figure out which movie belongs to which user
+            if ma in user1 and mb in user2:
+                m1, m2 = ma, mb
+            elif mb in user1 and ma in user2:
+                m1, m2 = mb, ma
+            else:
+                continue
+
+            # Ignore weak/noisy data
+            if count < 5:
+                continue
+
+            # Calculate Edge Strength (from previous logic: bounded 0.0 to 1.0)
+            avg = r_sum / count
+            edge_strength = max(0.0, min(1.0, (avg - 20.0) / 80.0))
+
+            # Factor in how highly they rated these connected movies
+            r1_factor = float(user1[m1]) / max_rating
+            r2_factor = float(user2[m2]) / max_rating
+
+            indirect_match_score = edge_strength * r1_factor * r2_factor
+
+            # Keep the highest indirect connection score for Movie 1
+            if m1 not in best_indirect_matches or indirect_match_score > best_indirect_matches[m1]:
+                best_indirect_matches[m1] = indirect_match_score
+
+        # Add best indirect matches to total score
+        # Weighted at 0.8 so an indirect connection is never mathematically stronger than a perfect direct match
+        for score in best_indirect_matches.values():
+            total_score += (score * 0.8)
+
+    # --- 3. FINAL PERCENTAGE ---
+    union_size = len(union_ids)
+    if union_size == 0:
+        return jsonify({"overlap_score": 0})
+
+    # Divide our accumulated score by the total number of unique movies considered
+    final_percentage = int(round((total_score / union_size) * 100))
+    final_percentage = min(100, max(0, final_percentage))
+
+    return jsonify({"overlap_score": final_percentage})
 
 if __name__ == "__main__":
   logging.basicConfig(level=logging.DEBUG)
