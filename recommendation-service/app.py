@@ -10,10 +10,12 @@ app = Flask(__name__)
 # 1. Define BOTH database paths, allowing environment variable overrides
 DB_PATH = os.environ.get("DATABASE_PATH", "../movie_connections.db")
 CATALOG_DB_PATH = os.environ.get("CATALOG_DB_PATH", "../movies_catalog.db")
+EDGES_DB_PATH = os.environ.get("EDGES_DB_PATH", "../movie_edges.db")
 
 
 def get_db_connection():
   conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+  conn.execute(f"ATTACH DATABASE 'file:{EDGES_DB_PATH}?mode=ro' AS edges")
   return conn
 
 
@@ -226,7 +228,12 @@ def recommend_movies():
     watched_ratings = data.get("watchedRatings", data.get("watched_ratings", {}))
     limit = int(data.get("limit", 10))
     offset = int(data.get("offset", 0))
-    POPULARITY_SKEW = 0.15
+
+    # --- NEW CONFIGURABLE VARIABLES ---
+    # The maximum debuff applied to heavily connected movies (0.5 means 50% max penalty)
+    max_debuff = float(data.get("max_popularity_debuff", 0.1))
+    # The threshold of edges at which the max debuff is applied
+    edge_threshold = float(data.get("popularity_edge_threshold", 1408.0))
 
     if not watched_ratings:
         return jsonify([])
@@ -240,29 +247,44 @@ def recommend_movies():
         for mid, rating in watched_ratings.items():
             cte_params.extend([str(mid), float(rating)])
 
-        cte_sql = f"WITH user_ratings(movie_id, rating) AS ( VALUES {values_placeholders} )"
-
-        # --- 1. Dynamic Popularity Bias Calculation ---
-        raw_bias = data.get("popularity_bias")
-        if raw_bias is not None:
-            popularity_bias = float(raw_bias)
-        else:
-            bias_query = f"""
-                {cte_sql}
-                SELECT SUM(c.rating_sum)
+        # --- 1. CTE Definitions ---
+        # `user_ratings` holds EVERYTHING to ensure they are excluded from final recommendations.
+        # `weighted_user_ratings` excludes <= 3.0 stars and counts their edges dynamically.
+        cte_sql = f"""
+            WITH user_ratings(movie_id, rating) AS (
+                VALUES {values_placeholders}
+            ),
+            weighted_user_ratings AS (
+                SELECT 
+                    u.movie_id, 
+                    u.rating,
+                    COALESCE(e.edge_count, 0) AS edge_count
+                FROM user_ratings u
+                LEFT JOIN edges.movie_edge_counts e ON u.movie_id = e.movie_id
+                WHERE u.rating > 3.0
+            ),
+            candidate_edges AS (
+                SELECT 
+                    c.movie_b AS candidate_id,
+                    c.rating_sum,
+                    c.count,
+                    u.rating,
+                    u.edge_count
                 FROM connections c
-                JOIN user_ratings u ON u.movie_id = c.movie_a OR u.movie_id = c.movie_b
-            """
-            cursor.execute(bias_query, cte_params)
-            total_input_sum = cursor.fetchone()[0]
-
-            MAX_AUTO_BIAS = 0.5
-            if total_input_sum:
-                avg_input_sum = total_input_sum / len(watched_ratings)
-                calculated_bias = MAX_AUTO_BIAS * (avg_input_sum / (avg_input_sum + 150000000.0))
-                popularity_bias = min(MAX_AUTO_BIAS + POPULARITY_SKEW, calculated_bias + POPULARITY_SKEW)
-            else:
-                popularity_bias = POPULARITY_SKEW
+                JOIN weighted_user_ratings u ON c.movie_a = u.movie_id
+                
+                UNION ALL
+                
+                SELECT 
+                    c.movie_a AS candidate_id,
+                    c.rating_sum,
+                    c.count,
+                    u.rating,
+                    u.edge_count
+                FROM connections c
+                JOIN weighted_user_ratings u ON c.movie_b = u.movie_id
+            )
+        """
 
         # --- 2. Calculate Recommendations ---
         query = f"""
@@ -275,11 +297,10 @@ def recommend_movies():
                 ) as overlap_score
             FROM (
                 SELECT
-                    CASE WHEN c.movie_a = u.movie_id THEN c.movie_b ELSE c.movie_a END AS candidate_id,
-                    c.rating_sum * (u.rating / 5.0) AS adjusted_rating_sum,
-                    c.count * (u.rating / 5.0) AS adjusted_count
-                FROM connections c
-                JOIN user_ratings u ON u.movie_id = c.movie_a OR u.movie_id = c.movie_b
+                    candidate_id,
+                    rating_sum * (rating / 5.0) * (1.0 - (MIN(edge_count, {edge_threshold}) / {edge_threshold}) * {max_debuff}) AS adjusted_rating_sum,
+                    count * (rating / 5.0) * (1.0 - (MIN(edge_count, {edge_threshold}) / {edge_threshold}) * {max_debuff}) AS adjusted_count
+                FROM candidate_edges
             )
             GROUP BY candidate_id
             HAVING candidate_id NOT IN (SELECT movie_id FROM user_ratings)
@@ -288,7 +309,6 @@ def recommend_movies():
             LIMIT ? OFFSET ?
         """
 
-        # Removed popularity_bias from params
         params = cte_params + [limit, offset] 
         cursor.execute(query, params)
         results = cursor.fetchall()
