@@ -57,9 +57,11 @@ public class MovieSearchService {
     }
 
     public MovieSearchResponseDTO searchMovies(String query) {
+        String sanitizedQuery = query != null ? query.replaceAll("[-–]", " ") : query;
+
         URI url = UriComponentsBuilder.fromUriString(baseUrl)
                 .queryParam("apikey", apiKey)
-                .queryParam("s", query)
+                .queryParam("s", sanitizedQuery)
                 .queryParam("type", "movie")
                 .queryParam("r", "json")
                 .build()
@@ -234,41 +236,30 @@ public class MovieSearchService {
         return null;
     }
 
-    public Map<String, String> fetchInternalMovieIds(List<String> movieNames) {
+    public Map<String, String> fetchInternalMovieIds(List<RatedMovie> movies) {
         Map<String, String> movieIdsByName = new LinkedHashMap<>();
+        if (movies == null || movies.isEmpty()) return movieIdsByName;
 
-        if (movieNames == null || movieNames.isEmpty()) {
-            return movieIdsByName;
-        }
-
-        List<String> sanitizedNames = movieNames.stream()
-                .filter(name -> name != null && !name.trim().isEmpty())
-                .map(String::trim)
-                .distinct()
+        // Correctly map RatedMovie objects to the DTO items
+        List<BulkCatalogSearchRequestDTO.MovieSearchItem> searchItems = movies.stream()
+                .filter(m -> m.getName() != null && !m.getName().isBlank())
+                .map(m -> new BulkCatalogSearchRequestDTO.MovieSearchItem(m.getName().trim(), m.getYear()))
                 .collect(Collectors.toList());
 
-        if (sanitizedNames.isEmpty()) {
-            return movieIdsByName;
-        }
+        if (searchItems.isEmpty()) return movieIdsByName;
 
-        String url = UriComponentsBuilder.fromUriString(recommendationUrl)
-                .path("/movie/search/bulk")
-                .toUriString();
+        String url = recommendationUrl + "/movie/search/bulk";
 
         try {
             HttpHeaders headers = new HttpHeaders();
             String token = getGoogleCloudToken(recommendationUrl);
-            if (token != null) {
-                headers.setBearerAuth(token);
-            }
+            if (token != null) headers.setBearerAuth(token);
 
-            BulkCatalogSearchRequestDTO requestPayload = new BulkCatalogSearchRequestDTO(sanitizedNames);
+            BulkCatalogSearchRequestDTO requestPayload = new BulkCatalogSearchRequestDTO(searchItems);
             HttpEntity<BulkCatalogSearchRequestDTO> requestEntity = new HttpEntity<>(requestPayload, headers);
 
             ResponseEntity<Map<String, CatalogMovieDTO[]>> responseEntity = restTemplate.exchange(
-                    url,
-                    HttpMethod.POST,
-                    requestEntity,
+                    url, HttpMethod.POST, requestEntity,
                     new ParameterizedTypeReference<Map<String, CatalogMovieDTO[]>>() {}
             );
 
@@ -276,18 +267,17 @@ public class MovieSearchService {
             if (results != null) {
                 for (Map.Entry<String, CatalogMovieDTO[]> entry : results.entrySet()) {
                     CatalogMovieDTO[] matches = entry.getValue();
-                    if (matches != null && matches.length > 0 && matches[0] != null) {
+                    if (matches != null && matches.length > 0) {
                         movieIdsByName.put(entry.getKey(), String.valueOf(matches[0].getId()));
                     }
                 }
             }
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             System.err.println("Failed to fetch internal IDs in bulk: " + e.getMessage());
         }
-
         return movieIdsByName;
     }
+
     public List<RecommendResponseDTO> fetchRecommendations(List<String> watchedIds, int limit, int offset) {
         if (watchedIds == null || watchedIds.isEmpty()) {
             return new ArrayList<>();

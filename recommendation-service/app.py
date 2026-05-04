@@ -136,58 +136,73 @@ def search_movies_by_name():
   return jsonify(results)
 
 
-# 4. Bulk search movies by a list of names
 @app.route("/movie/search/bulk", methods=["POST"])
 def search_movies_bulk():
   data = request.get_json()
+  if not data or "movies" not in data:
+    return jsonify({"error": "Missing 'movies' array"}), 400
 
-  # Safely check if data exists and contains our list
-  if not data or "names" not in data:
-    return jsonify({"error": "Please provide a JSON body with a 'names' array."}), 400
-
-  search_terms = data.get("names", [])
-  if not search_terms:
-    return jsonify({})
+  search_requests = data.get("movies", [])
+  results_dict = {}
 
   conn = sqlite3.connect(CATALOG_DB_PATH)
   conn.row_factory = sqlite3.Row
   cursor = conn.cursor()
 
-  query = """
-            SELECT m.id, m.title, m.year, m.genres
-            FROM movies m
-            JOIN movies_fts fts ON m.id = fts.rowid
-            WHERE movies_fts MATCH ?
-            ORDER BY fts.rank
-            LIMIT 10
-            """
+  for item in search_requests:
+    name = item.get("name")
+    year = item.get("year")
+    
+    if not name:
+        continue
 
-  results_dict = {}
-
-  for search_term in search_terms:
-    # Re-use your existing parsing logic for each term
-    decoded_term = unquote(search_term)
+    # Prepare search term
+    decoded_term = unquote(name)
     clean_term = re.sub(r"[^\w\s]", " ", decoded_term)
     words = clean_term.split()
-
     if not words:
-      results_dict[search_term] = []
+      results_dict[name] = []
       continue
-
     query_term = " ".join([f"{word}*" for word in words])
 
-    try:
-      cursor.execute(query, (query_term,))
-      results_dict[search_term] = [dict(row) for row in cursor.fetchall()]
-    except Exception as e:
-      app.logger.error(f"FTS Search Error on query '{query_term}': {e}")
-      results_dict[search_term] = []
+    # Base query components
+    base_sql = "SELECT m.id, m.title, m.year, m.genres FROM movies m JOIN movies_fts fts ON m.id = fts.rowid WHERE movies_fts MATCH ?"
+    order_limit = " ORDER BY fts.rank LIMIT 10"
+
+    results = []
+
+    # --- LAYER 1: Strict Match (Name + Exact Year) ---
+    if year:
+        try:
+            cursor.execute(base_sql + " AND m.year = ?" + order_limit, [query_term, year])
+            results = [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            app.logger.error(f"Strict search error for {name}: {e}")
+
+    # --- LAYER 2: Fuzzy Year Match (Name + Year +/- 1) ---
+    # Try this if strict match failed but we have a year
+    if not results and year:
+        try:
+            cursor.execute(base_sql + " AND m.year BETWEEN ? AND ?" + order_limit, [query_term, year - 1, year + 1])
+            results = [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            app.logger.error(f"Fuzzy year search error for {name}: {e}")
+
+    # --- LAYER 3: Name Only (Final Fallback) ---
+    # Try this if we still have no results or if no year was provided
+    if not results:
+        try:
+            cursor.execute(base_sql + order_limit, [query_term])
+            results = [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            app.logger.error(f"Loose search error for {name}: {e}")
+
+    results_dict[name] = results
 
   conn.close()
-
-  # Returns a dictionary where keys are the requested movie names
-  # and values are the list of search results
   return jsonify(results_dict)
+
+
 
 
 @app.route("/recommend", methods=["POST"])
