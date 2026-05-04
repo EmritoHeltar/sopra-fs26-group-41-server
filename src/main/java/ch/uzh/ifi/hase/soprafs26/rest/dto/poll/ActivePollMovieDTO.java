@@ -2,16 +2,26 @@ package ch.uzh.ifi.hase.soprafs26.rest.dto.poll;
 
 import java.util.List;
 
-public class ActivePollMovieDTO extends PollMovieDTO {
+public class ActivePollMovieDTO { //I had to remove the inheritance from PollMovieDTO i hope this doesn't fuck anyone over. It was due to variables having different types and it not being overridable
+    private String title;
+    private String movieId;
     private String description;
     private String director;
     private String genres;
     private String runtime;
     private String imdbRating;
+    private String posterUrl;
+    private Integer tasteOverlap;
 
-    public String getDescription() {
-        return description;
+
+    public String getMovieId() {
+        return movieId;
     }
+    public void setMovieId(String movieId) {
+        this.movieId = movieId;
+    }
+
+    public String getDescription() {return description;}
 
     public void setDescription(String description) {
         this.description = description;
@@ -48,4 +58,18 @@ public class ActivePollMovieDTO extends PollMovieDTO {
     public void setImdbRating(String imdbRating) {
         this.imdbRating = imdbRating;
     }
+
+    public String getPosterUrl() { return posterUrl; }
+    public void setPosterUrl(String posterUrl) { this.posterUrl = posterUrl; }
+
+    public Integer getTasteOverlap() { return tasteOverlap; }
+    public void setTasteOverlap(Integer tasteOverlap) { this.tasteOverlap = tasteOverlap; }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+    public String getTitle() {
+        return title;
+    }
+
 }

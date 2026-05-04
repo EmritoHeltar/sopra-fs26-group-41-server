@@ -2,6 +2,7 @@ package ch.uzh.ifi.hase.soprafs26.controller;
 
 import java.util.List;
 
+import ch.uzh.ifi.hase.soprafs26.rest.dto.poll.PollDetailsGetDTO;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -279,4 +280,6 @@ public class GroupController {
         User user = userService.getUserByToken(token);
         return pollService.getPollResults(groupId, user);
     }
+
+
 }
