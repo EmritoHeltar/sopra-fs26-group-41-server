@@ -137,7 +137,7 @@ public class GroupController {
         groupService.recommendMovies(joinedGroup,0); //Offset is at zero when creating a group
 
         GroupJoinResponseDTO response = new GroupJoinResponseDTO();
-        response.setGroupUrl(joinedGroup.getJoinToken());
+        response.setGroupUrl("/groups/" + joinedGroup.getId());
 
         return response;
     }
